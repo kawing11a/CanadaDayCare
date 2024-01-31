@@ -5,7 +5,7 @@ import './App.css';
 import axios from "axios";
 import csv from "csvtojson";
 import { Box, Button, Link, List, ListItemButton, ListItemText, Typography } from "@mui/material";
-import { DataGrid, GridColDef, GridValueGetterParams } from "@mui/x-data-grid";
+import { DataGrid, GridCellParams, GridColDef, GridValueGetterParams } from "@mui/x-data-grid";
 
 interface DayCare {
   X: string,
@@ -27,7 +27,121 @@ interface DayCare {
   UNIT_NUMBER: string;
   COMMUNITY: string;
   MUNICIPALITY: string;
+  URL?: string;
 }
+
+const DayCareWebsiteMap = new Map<string, string>([
+  ["ACE MONTESSORI", "https://www.acemontessori.ca/"],
+  ["Upper Canada Child Care at Aldergrove PS", "https://uppercanadachildcare.com/locations/aldergrove-public-school/"],
+  ["All About Kids Day Care", "https://allaboutkids.ca/"],
+  ["All About Kids - Cornell 2", "https://allaboutkids.ca/locations/cornell-2/"],
+  ["All Smiles Childcare Centre", "https://www.allsmileschildcare.ca/"],
+  ["All Saints' Montessori School", "https://allsaintsmontessori.com/"],
+  ["Armadale Child Care Centre", "https://www.armadalechildcare.com/"],
+  ["Upper Canada Child Care at Ashton Meadows PS", "https://uppercanadachildcare.com/locations/ashton-meadows-public-school/"],
+  ["Upper Canada Child Care at Baythorn PS", "https://uppercanadachildcare.com/locations/baythorn-public-school/"],
+  ["Bayview Fairways B & A School Program", "https://www.bayviewfairwayschildcare.com/"],
+  ["Bayview Glen Before & After School Program", "https://www.bayviewglenchildcare.com/"],
+  ["Beckenridge Discovery Preschool", "https://www.beckenridgediscoverypreschool.com/"],
+  ["Between Friends", "https://www.betweenfriendschildcare.com/"],
+  ["Upper Canada Child Care at St. John XXIII CES", "https://uppercanadachildcare.com/locations/st-john-xxiii-catholic-elementary-school/"],
+  ["Blossoms", "https://www.blossomschildcare.com/"],
+  ["Boxwood School Age Program", "https://www.boxwoodchildcare.com/"],
+  ["Brimley-Steeles Montessori School", "https://www.brimleysteelesmontessori.com/"],
+  ["Upper Canada Child Care at Buttonville PS", "https://uppercanadachildcare.com/locations/buttonville-public-school/"],
+  ["Castlemore School Age Program", "https://www.castlemorechildcare.com/"],
+  ["Central Park Child Care Centre", "https://www.centralparkchildcare.com/"],
+  ["Chapel Place Daycare Centre", "https://www.chapelplacedaycare.com/"],
+  ["Coledale Junior Y", "https://ymcagta.org/find-a-y/coledale-child-care-centre"],
+  ["Upper Canada Child Care at Cornell Village PS", "https://uppercanadachildcare.com/locations/cornell-village-public-school/"],
+  ["Upper Canada Child Care at David Suzuki PS", "https://uppercanadachildcare.com/locations/david-suzuki-public-school/"],
+  ["Discovery Preschool On 7 Inc.", "https://www.discoverypreschool.ca/"],
+  ["Upper Canada Child Care at Donald Cousens PS", "https://uppercanadachildcare.com/locations/donald-cousens-public-school/"],
+  ["Early Blooms Montessori", "https://www.earlyblooms.ca/"],
+  ["Upper Canada Child Care at Ellen Fairclough PS", "https://uppercanadachildcare.com/locations/ellen-fairclough-public-school/"],
+  ["Evergreen Daycare Centre", "https://evergreendaycarecentre.com/"],
+  ["Cedarwood Before & After School Program", "https://www.cedarwoodchildcare.com/"],
+  ["Upper Canada Child Care at Fred Varley PS", "https://uppercanadachildcare.com/locations/fred-varley-public-school/"],
+  ["Friendships", "https://www.friendshipschildcare.com/"],
+  ["German Mills Children's Academy", "https://www.germanmillschildrensacademy.com/"],
+  ["Greensborough Before and After School Program", "https://www.greensboroughchildcare.com/"],
+  ["Hagerman House Early Learning and Family Centre", "https://www.hagermanhouse.com/"],
+  ["Henderson Ave Kids Club", "https://www.hendersonavekidsclub.com/"],
+  ["Heritage Discovery Pre-School Inc.", "https://www.heritagediscoverypreschool.com/"],
+  ["Highgate School-Age Childcare", "https://www.highgatechildcare.com/"],
+  ["Wilclay Childcare Centre", "https://www.wilclaychildcare.com/"],
+  ["Inspire Montessori School Corp", "https://www.inspiremontessori.ca/"],
+  ["Inventiveminds Child, Youth Family Services", "https://www.inventiveminds.ca/"],
+  ["James Robinson School Age Program", "https://www.jamesrobinsonchildcare.com/"],
+  ["Upper Canada Child Care at John McCrae PS", "https://uppercanadachildcare.com/locations/john-mccrae-public-school/"],
+  ["Johnsview School-Age Program", "https://www.johnsviewchildcare.com/"],
+  ["Kateri Tekakwitha Before & After School Program", "https://www.kateritekakwithachildcare.com/"],
+  ["Kids Connection @ All Saints", "https://www.kidsconnectionchildcare.com/"],
+  ["Kids Connection @ Beckett Farm", "https://www.kidsconnectionchildcare.com/"],
+  ["La Garderie Des Moussaillons", "https://www.lagarderiedesmoussaillons.com/"],
+  ["Le Club Child Care - School Age Child Care - Woodland", "https://www.leclubchildcare.com/"],
+  ["Le Club - Roy H Crosby", "https://www.leclubchildcare.com/"],
+  ["Learning Jungle School - Greensborough Campus", "https://www.learningjungle.com/greensborough/"],
+  ["Legacy YMCA Child Care", "https://ymcagta.org/find-a-y/legacy-child-care-centre"],
+  ["Upper Canada Child Care at Lincoln Alexander PS", "https://uppercanadachildcare.com/locations/lincoln-alexander-public-school/"],
+  ["Upper Canada Child Care at Little Rouge PS", "https://uppercanadachildcare.com/locations/little-rouge-public-school/"],
+  ["Little Steps Early Learning and Child Care Centre", "https://www.littlestepschildcare.ca/"],
+  ["Little Miracles Child Care and Learning Centre", "https://www.littlemiracleschildcare.ca/"],
+  ["Love n' Learn Childcare", "https://www.lovenlearnchildcare.com/"],
+  ["Macklin House Daycare Centre", "https://www.macklinhousedaycare.com/"],
+  ["Macklin House Kidzone - Coppard Glen", "https://www.macklinhousekidzone.com/"],
+  ["Macklin House Kidzone - Sam Chapman", "https://www.macklinhousekidzone.com/"],
+  ["Maple Seed Montessori and Child Care", "https://www.mapleseedmontessori.com/"],
+  ["Markham Gateway Kid's Club", "https://www.markhamgatewaykidsclub.com/"],
+  ["Markville Child Care Centre", "https://www.markvillechildcare.com/"],
+  ["McGivney Early Learning Centre", "https://www.mcgivneychildcare.com/"],
+  ["Milliken Mills School-Age Child Care", "https://www.millikenmillschildcare.com/"],
+  ["Montessori North School", "https://www.montessorinorth.ca/"],
+  ["Mount Joy YMCA School Age", "https://ymcagta.org/find-a-y/mount-joy-child-care-centre"],
+  ["Pals", "https://www.palschildcare.com/"],
+  ["Parkland Child Care Centre", "https://www.parklandchildcare.com/"],
+  ["Parkview YMCA School Age", "https://ymcagta.org/find-a-y/parkview-child-care-centre"],
+  ["Pastimes", "https://www.pastimeschildcare.com/"],
+  ["Polka Dot Academy Montessori Daycare", "https://www.polkadotacademy.com/"],
+  ["Queens Montessori Academy", "https://www.queensmontessori.com/"],
+  ["Radiant Way Montessori School", "https://www.radiantwaymontessori.com/"],
+  ["Rainbows", "https://www.rainbowschildcare.com/"],
+  ["Randall Child Care Centre", "https://www.randallchildcare.com/"],
+  ["Rocking Horse Day Nursery", "https://www.rockinghorsedaynursery.com/"],
+  ["Rouge Park YMCA Child Care", "https://ymcagta.org/find-a-y/rouge-park-child-care-centre"],
+  ["Safari Kid Markham", "https://www.safarikidinternational.com/locations/canada/markham/"],
+  ["Upper Canada Child Care at San Lorenzo Ruiz CES", "https://uppercanadachildcare.com/locations/san-lorenzo-ruiz-catholic-elementary-school/"],
+  ["Upper Canada Child Care at Nokiidaa PS", "https://uppercanadachildcare.com/locations/nokiidaa-public-school/"],
+  ["Sir Richard W. Scott B & A School Program", "https://www.sirrichardwscottchildcare.com/"],
+  ["Upper Canada Child Care at Sir Wilfrid Laurier PS", "https://uppercanadachildcare.com/locations/sir-wilfrid-laurier-public-school/"],
+  ["Wesley Christian Early Learning Centre", "https://www.wesleychristian.ca/"],
+  ["St. Michael Child Care Centre", "https://www.stmichaelchildcare.com/"],
+  ["St. Anthony Child Care Centre", "https://www.stanthonychildcare.com/"],
+  ["Upper Canada Child Care at St. Benedict CES", "https://uppercanadachildcare.com/locations/st-benedict-catholic-elementary-school/"],
+  ["St. Edward Before & After School Program", "https://www.stedwardchildcare.com/"],
+  ["St. Francis Xavier Before & After Child Care Prog.", "https://www.stfrancisxavierchildcare.com/"],
+  ["St. Joseph Childrens Program", "https://www.stjosephchildcare.com/"],
+  ["St. Julia Billiart School Age Program", "https://www.stjuliabilliartchildcare.com/"],
+  ["St. Justin Martyr Before & After School Program", "https://www.stjustinmartyrchildcare.com/"],
+  ["St. Mary of Leuca Daycare", "https://www.stmaryofleucadaycare.com/"],
+  ["St. Monica Child Care Centre", "https://www.stmonicachildcare.com/"],
+  ["St. Patrick Before & After School Program", "https://www.stpatrickchildcare.com/"],
+  ["Upper Canada Child Care at St. Rene Goupil-St. Luke CES", "https://uppercanadachildcare.com/locations/st-rene-goupil-st-luke-catholic-elementary-school/"],
+  ["Upper Canada Child Care at Stornoway Cresent PS", "https://uppercanadachildcare.com/locations/stornoway-crescent-public-school/"],
+  ["Sunrise Montessori School", "https://www.sunrisemontessori.ca/"],
+  ["Thornhill Child Care Centre", "https://www.thornhillchildcare.com/"],
+  ["Torah Tots Nursery", "https://www.torahtotsnursery.com/"],
+  ["Trillium School", "https://www.trilliumschool.ca/"],
+  ["Unionville Meadows School-Age Childcare", "https://www.unionvillemeadowschildcare.com/"],
+  ["Unionville Discovery Preschool", "https://www.unionvillediscoverypreschool.com/"],
+  ["Victoria Square Schoolhouse Early Childhood Education Centre", "https://www.victoriasquareschoolhouse.com/"],
+  ["Upper Canada Child Care Victoria Square PS", "https://uppercanadachildcare.com/locations/victoria-square-public-school/"],
+  ["Upper Canada Child Care at William Armstrong PS", "https://uppercanadachildcare.com/locations/william-armstrong-public-school/"],
+  ["Willowbrook YMCA School Age", "https://ymcagta.org/find-a-y/willowbrook-child-care-centre"],
+  ["Upper Canada Child Care at Wismer PS", "https://uppercanadachildcare.com/locations/wismer-public-school/"],
+  ["Woodhaven Junior Y", "https://ymcagta.org/find-a-y/woodhaven-child-care-centre"],
+  ["York Montessori Private School", "https://www.yorkmontessori.com/"],
+]);
 
 const PostalMapURLMap = new Map<string, string>([
   ["L3P", "!1m18!1m12!1m3!1d46015.5140481219!2d-79.30799702131985!3d43.87718086966684!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89d4d63fcdcb8233%3A0xa70e1348265e27ea!2zTDNQ5Yqg5ou_5aSn5a6J5aSn55Wl5pa85Lq65p2R!5e0!3m2!1szh-TW!2shk!4v1706714622439!5m2!1szh-TW!2shk"],
@@ -85,7 +199,7 @@ function App() {
         }
       });
       return exists && x.TYPE == "Centre Based Child Care" && x.SUBSIDIZED == "Yes" && x.CWELCC == "Yes";
-    }));
+    }).map(x => ({ ...x, URL: DayCareWebsiteMap.get(x.NAME) ?? "" })));
   };
   console.log(dayCareList);
 
@@ -93,6 +207,7 @@ function App() {
     {
       field: 'NAME',
       headerName: 'Name',
+      renderCell: (params: GridCellParams<DayCare, string>) => <Link target="_blank" href={params.row.URL}>{params.value}</Link>,
       valueGetter: (params: GridValueGetterParams<DayCare, string>) => {
         return `${params.value} ${!!params.row.ORG_NAME ? `(${params.row.ORG_NAME})` : ''}`;
       },
