@@ -5,7 +5,8 @@ import './App.css';
 import axios from "axios";
 import csv from "csvtojson";
 import { Box, Button, Link, List, ListItemButton, ListItemText, Typography } from "@mui/material";
-import { DataGrid, GridCellParams, GridColDef, GridValueGetterParams } from "@mui/x-data-grid";
+import { DataGrid, GridCallbackDetails, GridCellParams, GridColDef, GridRowSelectionModel, GridValueGetterParams } from "@mui/x-data-grid";
+import fs from "fs";
 
 interface DayCare {
   X: string,
@@ -236,6 +237,17 @@ function App() {
       flex: 1,
     },
   ], []);
+
+  const handleRowSelect = async (rowSelectionModel: GridRowSelectionModel, details: GridCallbackDetails<any>) => {
+    const bookmarkedDayCares = dayCareList.filter(x => rowSelectionModel.includes(x.OBJECTID));
+    fs.writeFile('bookmarks.json', JSON.stringify(bookmarkedDayCares), function (err) {
+      if (err) {
+        console.log(err);
+      }
+    });
+
+  };
+
   return (
     <>
       <Box sx={{ display: 'flex', height: '100%', width: '100%' }}>
@@ -261,6 +273,8 @@ function App() {
             rows={dayCareList.filter(x => (new RegExp(activePostalCode).test(x.POSTAL_CODE)))}
             columns={columnConfig}
             pagination
+            checkboxSelection
+            onRowSelectionModelChange={handleRowSelect}
           />
         </Box>
       </Box>
