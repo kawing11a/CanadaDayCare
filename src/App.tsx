@@ -6,7 +6,7 @@ import axios from "axios";
 import csv from "csvtojson";
 import { Box, Button, Link, List, ListItemButton, ListItemText, Typography } from "@mui/material";
 import { DataGrid, GridCallbackDetails, GridCellParams, GridColDef, GridRowSelectionModel, GridValueGetterParams } from "@mui/x-data-grid";
-import fs from "fs";
+import fs from "vite-plugin-fs/browser";
 
 interface DayCare {
   X: string,
@@ -169,14 +169,22 @@ function App() {
   // const [contents, contentsSetter] = useState<string[]>([]);
   const [activePostalCode, activePostalCodeSetter] = useState<string>("");
   const [dayCareList, dayCareListSetter] = useState<DayCare[]>([]);
+  const [bookmarks, bookmarksSetter] = useState<string[]>([]);
+  const [ready, readySetter] = useState<boolean>(false);
 
   const mountEffect = () => {
     loadFile();
+
+    return () => {
+      readySetter(false);
+    };
   };
 
   useEffect(mountEffect, []);
 
   const loadFile = async () => {
+    const bookmarkStr = await fs.readFile("bookmarks.json");
+    bookmarksSetter(JSON.parse(bookmarkStr));
     const response = await axios.get("./Children_s_Service.csv", { responseType: 'blob' });
     console.log(response);
     const reader = new FileReader();
@@ -201,8 +209,9 @@ function App() {
       });
       return exists && x.TYPE == "Centre Based Child Care" && x.SUBSIDIZED == "Yes" && x.CWELCC == "Yes";
     }).map(x => ({ ...x, URL: DayCareWebsiteMap.get(x.NAME) ?? "" })));
+
+    readySetter(true);
   };
-  console.log(dayCareList);
 
   const columnConfig = useMemo<GridColDef[]>(() => [
     {
@@ -239,11 +248,11 @@ function App() {
   ], []);
 
   const handleRowSelect = async (rowSelectionModel: GridRowSelectionModel, details: GridCallbackDetails<any>) => {
+    console.log(rowSelectionModel);
     const bookmarkedDayCares = dayCareList.filter(x => rowSelectionModel.includes(x.OBJECTID));
-    fs.writeFile('bookmarks.json', JSON.stringify(bookmarkedDayCares), function (err) {
-      if (err) {
-        console.log(err);
-      }
+    fs.writeFile('bookmarks.json', JSON.stringify(bookmarkedDayCares.map(x => x.OBJECTID))).then(() => {
+      bookmarksSetter(bookmarkedDayCares.map(x => x.OBJECTID));
+      loadFile();
     });
 
   };
@@ -268,14 +277,17 @@ function App() {
         <Box sx={{ display: 'block', width: '100%', height: '100%', bgcolor: 'background.paper', marginX: 1 }}>
           <Typography><Link target="_blank" href={`https://postal-codes.cybo.com/canada/${activePostalCode}_markham-ontario/`}>Population</Link></Typography>
           <iframe src={`https://www.google.com/maps/embed?pb=${PostalMapURLMap.get(activePostalCode)}`} width="600" height="450" style={{ border: '1px solid' }} allowFullScreen={false} loading="lazy" referrerPolicy="no-referrer-when-downgrade"></iframe>
-          <DataGrid
-            getRowId={x => x.OBJECTID}
-            rows={dayCareList.filter(x => (new RegExp(activePostalCode).test(x.POSTAL_CODE)))}
-            columns={columnConfig}
-            pagination
-            checkboxSelection
-            onRowSelectionModelChange={handleRowSelect}
-          />
+          {ready &&
+            <DataGrid
+              getRowId={x => x.OBJECTID}
+              rows={dayCareList.filter(x => (new RegExp(activePostalCode).test(x.POSTAL_CODE)))}
+              columns={columnConfig}
+              pagination
+              checkboxSelection
+              rowSelectionModel={bookmarks}
+              onRowSelectionModelChange={handleRowSelect}
+            />
+          }
         </Box>
       </Box>
     </>

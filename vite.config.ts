@@ -7,4 +7,5 @@ const externals = ['path'];
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), fs(), commonjsExternals({ externals })],
+
 });
