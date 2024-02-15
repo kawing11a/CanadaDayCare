@@ -217,7 +217,7 @@ function App() {
     {
       field: 'NAME',
       headerName: 'Name',
-      renderCell: (params: GridCellParams<DayCare, string>) => <Link target="_blank" href={params.row.URL}>{params.value}</Link>,
+      renderCell: (params: GridCellParams<DayCare, string>) => <Link target="_blank" href={`/public/daycare/${params.row.NAME?.trimEnd()}.pdf`}>{params.value}</Link>,
       valueGetter: (params: GridValueGetterParams<DayCare, string>) => {
         return `${params.value} ${!!params.row.ORG_NAME ? `(${params.row.ORG_NAME})` : ''}`;
       },
