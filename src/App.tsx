@@ -169,7 +169,7 @@ function App() {
   // const [contents, contentsSetter] = useState<string[]>([]);
   const [activePostalCode, activePostalCodeSetter] = useState<string>("");
   const [dayCareList, dayCareListSetter] = useState<DayCare[]>([]);
-  const [bookmarks, bookmarksSetter] = useState<string[]>([]);
+  const [bookmarks, bookmarksSetter] = useState<Record<string, string[]>>({});
   const [ready, readySetter] = useState<boolean>(false);
 
   const mountEffect = () => {
@@ -249,9 +249,12 @@ function App() {
 
   const handleRowSelect = async (rowSelectionModel: GridRowSelectionModel, details: GridCallbackDetails<any>) => {
     console.log(rowSelectionModel);
+    const result = await fs.readFile('bookmarks.json');
+    const postalBookmarks = JSON.parse(result);
     const bookmarkedDayCares = dayCareList.filter(x => rowSelectionModel.includes(x.OBJECTID));
-    fs.writeFile('bookmarks.json', JSON.stringify(bookmarkedDayCares.map(x => x.OBJECTID))).then(() => {
-      bookmarksSetter(bookmarkedDayCares.map(x => x.OBJECTID));
+    const newPostalBookmarks = { ...postalBookmarks, [activePostalCode]: bookmarkedDayCares.map(x => x.OBJECTID) };
+    fs.writeFile('bookmarks.json', JSON.stringify(newPostalBookmarks)).then(() => {
+      bookmarksSetter(newPostalBookmarks);
       loadFile();
     });
 
@@ -284,8 +287,9 @@ function App() {
               columns={columnConfig}
               pagination
               checkboxSelection
-              rowSelectionModel={bookmarks}
+              rowSelectionModel={bookmarks[activePostalCode]}
               onRowSelectionModelChange={handleRowSelect}
+              disableRowSelectionOnClick
             />
           }
         </Box>
