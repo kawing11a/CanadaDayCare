@@ -168,6 +168,7 @@ function App() {
   // const [fileNames, fileNamesSetter] = useState<string[]>([]);
   // const [contents, contentsSetter] = useState<string[]>([]);
   const [activePostalCode, activePostalCodeSetter] = useState<string>("");
+  const [bookmarked, bookmarkedSetter] = useState<boolean>(false);
   const [dayCareList, dayCareListSetter] = useState<DayCare[]>([]);
   const [bookmarks, bookmarksSetter] = useState<Record<string, string[]>>({});
   const [ready, readySetter] = useState<boolean>(false);
@@ -217,7 +218,7 @@ function App() {
     {
       field: 'NAME',
       headerName: 'Name',
-      renderCell: (params: GridCellParams<DayCare, string>) => <Link target="_blank" href={`/public/daycare/${params.row.NAME?.trimEnd()}.pdf`}>{params.value}</Link>,
+      renderCell: (params: GridCellParams<DayCare, string>) => <Link target="_blank" href={`/daycare/${params.row.NAME?.trimEnd()}.pdf`}>{params.value}</Link>,
       valueGetter: (params: GridValueGetterParams<DayCare, string>) => {
         return `${params.value} ${!!params.row.ORG_NAME ? `(${params.row.ORG_NAME})` : ''}`;
       },
@@ -263,13 +264,25 @@ function App() {
   return (
     <>
       <Box sx={{ display: 'flex', height: '100%', width: '100%' }}>
-        <Box sx={{ width: '100%', maxWidth: 60, bgcolor: 'background.paper', marginX: 1, }}>
+        <Box sx={{ width: '100%', textAlign: 'center', maxWidth: 120, bgcolor: 'background.paper', color: 'black', marginX: 1, }}>
           <List component="nav" aria-label="main mailbox folders">
+            <ListItemButton
+              selected={bookmarked}
+              onClick={(_) => {
+                bookmarkedSetter(true);
+                activePostalCodeSetter('');
+              }}
+            >
+              <ListItemText primary="Bookmark" />
+            </ListItemButton>
             {MarkhamPostalCodePrefixes.map(code => (
               <>
                 <ListItemButton
                   selected={activePostalCode === code}
-                  onClick={(_) => activePostalCodeSetter(code)}
+                  onClick={(_) => {
+                    bookmarkedSetter(false);
+                    activePostalCodeSetter(code);
+                  }}
                 >
                   <ListItemText primary={code} />
                 </ListItemButton>
@@ -280,13 +293,24 @@ function App() {
         <Box sx={{ display: 'block', width: '100%', height: '100%', bgcolor: 'background.paper', marginX: 1 }}>
           <Typography><Link target="_blank" href={`https://postal-codes.cybo.com/canada/${activePostalCode}_markham-ontario/`}>Population</Link></Typography>
           <iframe src={`https://www.google.com/maps/embed?pb=${PostalMapURLMap.get(activePostalCode)}`} width="600" height="450" style={{ border: '1px solid' }} allowFullScreen={false} loading="lazy" referrerPolicy="no-referrer-when-downgrade"></iframe>
-          {ready &&
+          {ready && !bookmarked &&
             <DataGrid
               getRowId={x => x.OBJECTID}
-              rows={dayCareList.filter(x => (new RegExp(activePostalCode).test(x.POSTAL_CODE)))}
+              rows={dayCareList.filter(x => !!activePostalCode && (new RegExp(activePostalCode).test(x.POSTAL_CODE)))}
               columns={columnConfig}
               pagination
               checkboxSelection
+              rowSelectionModel={bookmarks[activePostalCode]}
+              onRowSelectionModelChange={handleRowSelect}
+              disableRowSelectionOnClick
+            />
+          }
+          {ready && bookmarked &&
+            <DataGrid
+              getRowId={x => x.OBJECTID}
+              rows={dayCareList.filter(x => Object.values(bookmarks).reduce((result, a) => [...result, ...a], []).includes(x.OBJECTID))}
+              columns={columnConfig}
+              pagination
               rowSelectionModel={bookmarks[activePostalCode]}
               onRowSelectionModelChange={handleRowSelect}
               disableRowSelectionOnClick
