@@ -2,11 +2,37 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import reactLogo from './assets/react.svg';
 import viteLogo from '/vite.svg';
 import './App.css';
-import axios from "axios";
+import axios, { AxiosResponse } from "axios";
 import csv from "csvtojson";
 import { Box, Button, Link, List, ListItemButton, ListItemText, Typography } from "@mui/material";
 import { DataGrid, GridCallbackDetails, GridCellParams, GridColDef, GridRowSelectionModel, GridValueGetterParams } from "@mui/x-data-grid";
 import fs from "vite-plugin-fs/browser";
+
+interface APIResponseData {
+  featureFieldParameters: {
+    names: string[];
+    values: string[];
+  };
+  index: number;
+  linkedData: {
+    columns: string[];
+    rows: Record<"row", any[]>[];
+  };
+}
+
+interface ProgramData {
+  Program: string;
+  Available: string;
+  Capacity: number;
+  Vacancies: number;
+  Waitlist: number;
+}
+
+interface MarketRate {
+  "Care Description": string;
+  "Age Group": string;
+  "Market Rate": number;
+}
 
 interface DayCare {
   X: string,
@@ -181,8 +207,6 @@ function App() {
     };
   };
 
-  useEffect(mountEffect, []);
-
   const loadFile = async () => {
     const bookmarkStr = await fs.readFile("bookmarks.json");
     bookmarksSetter(JSON.parse(bookmarkStr));
@@ -210,15 +234,59 @@ function App() {
       });
       return exists && x.TYPE == "Centre Based Child Care" && x.SUBSIDIZED == "Yes" && x.CWELCC == "Yes";
     }).map(x => ({ ...x, URL: DayCareWebsiteMap.get(x.NAME) ?? "" })));
+  };
 
-    readySetter(true);
+  const dayCareListChangeEffect = () => {
+    if (dayCareList.length) {
+      loadProgramData();
+      loadMarketRates();
+
+      readySetter(true);
+    }
+  };
+
+  const [programData, programDataSetter] = useState<Record<string, ProgramData[]>>({});
+  const loadProgramData = async () => {
+    try {
+      const apiURL = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://maps.york.ca/Geocortex/Essentials/Public/REST/sites/ChildrensServices/map/mapservices/60/layers/2/datalinks/Programs/link?f=json&dojo.preventCache=1708100468793&pff_PROVID=${dayCareList.map(x => x.PROVIDDISP).join(',')}`)}`;
+      const response: Record<"results", APIResponseData[]> = JSON.parse((await axios.get(apiURL, { headers: { "Origin": "" } })).data.contents);
+      const tmpProgramData = response.results.reduce((result, x) => ({
+        ...result, [x.featureFieldParameters.values[0]]: x.linkedData.rows.map(d => d.row.reduce((result, a, index) => ({ ...result, [x.linkedData.columns[index]]: a }), {}), {})
+      }), {});
+      programDataSetter(tmpProgramData);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const [marketRates, marketRatesSetter] = useState<Record<string, MarketRate[]>>({});
+  const loadMarketRates = async () => {
+    try {
+      const apiURL = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://maps.york.ca/Geocortex/Essentials/Public/REST/sites/ChildrensServices/map/mapservices/60/layers/2/datalinks/MarketRates/link?f=json&dojo.preventCache=1708100468793&pff_PROVID=${dayCareList.map(x => x.PROVIDDISP).join(',')}`)}`;
+      const response: Record<"results", APIResponseData[]> = JSON.parse((await axios.get(apiURL, { headers: { "Origin": "" } })).data.contents);
+      const tmpMarketRates = response.results.reduce((result, x) => ({
+        ...result, [x.featureFieldParameters.values[0]]: x.linkedData.rows.map(d => d.row.reduce((result, a, index) => ({ ...result, [x.linkedData.columns[index]]: a }), {}), {})
+      }), {});
+      marketRatesSetter(tmpMarketRates);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const sendMail = (subject: string, body: string) => {
+    var uri = "mailto:?subject=";
+    uri += encodeURIComponent(subject);
+    uri += "&body=";
+    uri += encodeURIComponent(body);
+    window.open(uri);
   };
 
   const columnConfig = useMemo<GridColDef[]>(() => [
     {
       field: 'NAME',
       headerName: 'Name',
-      renderCell: (params: GridCellParams<DayCare, string>) => <Link target="_blank" href={`/daycare/${params.row.NAME?.trimEnd()}.pdf`}>{params.value}</Link>,
+      renderCell: (params: GridCellParams<DayCare, string>) => <Link target="_blank" href={DayCareWebsiteMap.get(params.row.NAME)}>{params.value}</Link>,
+      // renderCell: (params: GridCellParams<DayCare, string>) => <Link target="_blank" href={`/daycare/${params.row.NAME?.trimEnd()}.pdf`}>{params.value}</Link>,
       valueGetter: (params: GridValueGetterParams<DayCare, string>) => {
         return `${params.value} ${!!params.row.ORG_NAME ? `(${params.row.ORG_NAME})` : ''}`;
       },
@@ -246,7 +314,71 @@ function App() {
       headerName: 'UNIT_NUMBER',
       flex: 1,
     },
-  ], []);
+    {
+      field: 'Avaliable',
+      headerName: 'Avaliable',
+      type: 'boolean',
+      valueGetter: (params: GridValueGetterParams<DayCare, string>) => {
+        return programData[params.row.PROVIDDISP]?.find(x => x.Program == "Toddlers")?.Available == "Yes" ?? false;
+      }
+    },
+    {
+      field: 'Vacancies',
+      headerName: 'Vacancies',
+      valueGetter: (params: GridValueGetterParams<DayCare, string>) => {
+        return programData[params.row.PROVIDDISP]?.find(x => x.Program == "Toddlers")?.Vacancies ?? 0;
+      }
+    },
+    {
+      field: 'Waitlist',
+      headerName: 'Waitlist',
+      valueGetter: (params: GridValueGetterParams<DayCare, string>) => {
+        return programData[params.row.PROVIDDISP]?.find(x => x.Program == "Toddlers")?.Waitlist ?? 0;
+      }
+    },
+    {
+      field: 'halfDayPrice',
+      headerName: 'Half Day',
+      valueGetter: (params: GridValueGetterParams<DayCare, string>) => {
+        return marketRates[params.row.PROVIDDISP]?.find(x => x["Age Group"] == 'Toddler' && /Half/.test(x["Care Description"]))?.["Market Rate"] ?? 'N/A';
+      }
+    },
+    {
+      field: 'fullDayPrice',
+      headerName: 'Full Day',
+      valueGetter: (params: GridValueGetterParams<DayCare, string>) => {
+        return marketRates[params.row.PROVIDDISP]?.find(x => x["Age Group"] == 'Toddler' && /Full/.test(x["Care Description"]))?.["Market Rate"] ?? 'N/A';
+      }
+    },
+    {
+      field: 'email',
+      headerName: 'Email',
+      renderCell: (params: GridCellParams<DayCare, string>) => {
+        const body = `Dear ${params.row.NAME},
+
+I hope this email finds you well. My name is Tommy Chan, and I am reaching out to inquire about the availability of enrolling my toddler in your daycare's waitlist. I am currently residing outside Canada but will be relocating to Canada in May with a valid work permit.
+
+As we prepare for our move, securing a daycare placement for our child is of utmost importance to us. We have heard wonderful things about your daycare center and are keen to explore the possibility of enrolling our toddler with you.
+
+Given that we will be arriving in Canada in May, we wanted to inquire whether it is possible for us to join the daycare's waitlist at this stage, considering that we are not yet physically present in the country. We understand that waitlists can be extensive, and we want to ensure we have the necessary arrangements in place for our child's care upon our arrival.
+
+Additionally, we would appreciate any information you could provide regarding the necessary steps or documentation required to secure a place on your waitlist. We are more than willing to provide any documentation or complete any forms necessary to initiate the enrollment process.
+
+Thank you in advance for your attention to this matter. We are eagerly looking forward to your response and the possibility of securing a place for our child at your esteemed daycare center.
+
+Please feel free to contact me at tommy.chankawing@gmail.com if you require any further information. I sincerely appreciate your time and assistance.
+
+Thank you once again for your attention to this matter.
+
+Yours sincerely,
+Tommy Chan
+`;
+        return (
+          <Button type="button" onClick={() => sendMail("Inquiry Regarding Toddler Waitlist for Day Cares", body)}>Email</Button>
+        );
+      }
+    }
+  ], [programData, marketRates, sendMail]);
 
   const handleRowSelect = async (rowSelectionModel: GridRowSelectionModel, details: GridCallbackDetails<any>) => {
     console.log(rowSelectionModel);
@@ -260,6 +392,9 @@ function App() {
     });
 
   };
+
+  useEffect(mountEffect, []);
+  useEffect(dayCareListChangeEffect, [dayCareList]);
 
   return (
     <>
@@ -320,6 +455,6 @@ function App() {
       </Box>
     </>
   );
-}
+};
 
 export default App;
